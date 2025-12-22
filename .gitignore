@@ -1,3 +1,7 @@
 ***__pycache__
 *.sif
 tmp/
+***.venv
+uv.lock
+***.egg-info
+*.npy
