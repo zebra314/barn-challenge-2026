@@ -1,5 +1,5 @@
 import numpy as np
-from simulation.robot_config import RobotConfig
+from common.robot_config import RobotConfig
 
 class JackalSimulator:
     """
@@ -13,33 +13,33 @@ class JackalSimulator:
         self.x = 0.0
         self.y = 0.0
         self.theta = 0.0
-        self.v_actual = 0.0
-        self.w_actual = 0.0
+        self.actual_linear_vel = 0.0
+        self.actual_angular_vel = 0.0
         self.time = 0.0
 
     def step(self, target_v, target_w):
         """
         :return: (pose, actual_vel) -> ((x, y, theta), (v, w))
         """
-        dt = self.cfg.DT
+        dt = self.cfg.dt
 
         # Inertia
-        if target_v > self.v_actual:
-            self.v_actual = min(target_v, self.v_actual + self.cfg.ACC_LIM_V * dt)
+        if target_v > self.actual_linear_vel:
+            self.actual_linear_vel = min(target_v, self.actual_linear_vel + self.cfg.max_linear_acc * dt)
         else:
-            self.v_actual = max(target_v, self.v_actual - self.cfg.ACC_LIM_V * dt)
+            self.actual_linear_vel = max(target_v, self.actual_linear_vel - self.cfg.max_linear_acc * dt)
 
-        if target_w > self.w_actual:
-            self.w_actual = min(target_w, self.w_actual + self.cfg.ACC_LIM_W * dt)
+        if target_w > self.actual_angular_vel:
+            self.actual_angular_vel = min(target_w, self.actual_angular_vel + self.cfg.max_angular_acc * dt)
         else:
-            self.w_actual = max(target_w, self.w_actual - self.cfg.ACC_LIM_W * dt)
+            self.actual_angular_vel = max(target_w, self.actual_angular_vel - self.cfg.max_angular_acc * dt)
 
         # Actuation Noise
-        noisy_v = self.v_actual + np.random.normal(0, self.cfg.NOISE_V_STD)
-        noisy_w = self.w_actual + np.random.normal(0, self.cfg.NOISE_W_STD)
+        noisy_v = self.actual_linear_vel + np.random.normal(0, self.cfg.std_linear_noise)
+        noisy_w = self.actual_angular_vel + np.random.normal(0, self.cfg.std_angular_noise)
 
         # Under-steering
-        slip_ratio = 1.0 - (abs(self.v_actual) / self.cfg.MAX_V) * self.cfg.SLIP_FACTOR_MAX
+        slip_ratio = 1.0 - (abs(self.actual_linear_vel) / self.cfg.max_linear_vel) * self.cfg.max_slip_factor
         effective_w = noisy_w * slip_ratio
 
         # Lateral Slip
@@ -71,6 +71,6 @@ class JackalSimulator:
         self.time += dt
 
         # Return State and Actual Velocity (without noise)
-        # Note: For training data, the Input Last_Vel is recommended to use self.v_actual (or target_v)
+        # Note: For training data, the Input Last_Vel is recommended to use self.actual_linear_vel (or target_v)
         # Because this is the velocity the robot "thinks" it has, not the true noisy velocity
-        return np.array([self.x, self.y, self.theta]), np.array([self.v_actual, self.w_actual])
+        return np.array([self.x, self.y, self.theta]), np.array([self.actual_linear_vel, self.actual_angular_vel])
