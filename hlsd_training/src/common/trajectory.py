@@ -1,7 +1,30 @@
+from dataclasses import dataclass
 import numpy as np
 from typing import Optional
 from matplotlib import pyplot as plt
-from common.motion_type import MotionType
+from enum import Enum, auto
+
+class MotionType(Enum):
+    # Basic
+    FORWARD = auto()
+    TURN = auto()
+
+    # Barn Challenge Specific
+    CHICANE = auto()
+    THREADING = auto()
+
+    # Recovery
+    BRAKE = auto()
+    SPIN = auto()
+    BACKWARD = auto()
+
+@dataclass
+class TrajectoryConfig:
+    motion_type: MotionType
+    states: list[list[float]]
+    commands: list[list[float]]
+    dt: float = 0.1
+
 
 class Trajectory:
     def __init__(self,
