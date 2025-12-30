@@ -5,3 +5,4 @@ tmp/
 uv.lock
 ***.egg-info
 *.npy
+*.pyc

@@ -7,10 +7,12 @@ ENV ROS_DISTRO=melodic
 
 # Install system dependencies
 RUN apt-get update
+RUN apt-get install -y python-pip
 RUN apt-get install -y python3-pip
+RUN apt-get install -y python3-dev
 RUN apt-get install -y git
-RUN apt-get install -y zsh
 RUN apt-get install -y curl
+RUN apt-get install -y zsh
 RUN chsh -s $(which zsh)
 
 # Install GUI dependencies
@@ -46,7 +48,8 @@ RUN git clone https://github.com/jackal/jackal_desktop.git --branch melodic-deve
 RUN git clone https://github.com/utexas-bwi/eband_local_planner.git
 
 # Install Python dependencies
-RUN pip3 install defusedxml rospkg netifaces numpy
+RUN pip install "numpy<1.17"  pathlib "casadi==3.5.5"
+RUN pip3 install numpy rospkg
 
 # Install specific ROS packages
 RUN apt-get install -y ros-melodic-rviz
