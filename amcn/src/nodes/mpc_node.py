@@ -76,15 +76,35 @@ class MPCNode:
 
         for k in range(self.config['horizon'] + 1):
             idx = min(closest_idx + k, len(transformed_path) - 1)
-            pose = transformed_path[idx].pose
 
+            # Pose
+            curr_p = transformed_path[idx].pose.position
+            ref_traj[0, k] = curr_p.x
+            ref_traj[1, k] = curr_p.y
 
-            import tf.transformations
-            q = (pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
-            _, _, yaw = tf.transformations.euler_from_quaternion(q)
+            if idx < len(transformed_path) - 1:
+                next_p = transformed_path[idx + 1].pose.position
+                dx = next_p.x - curr_p.x
+                dy = next_p.y - curr_p.y
+                yaw = np.arctan2(dy, dx)
+            else:
+                # use previous point for last point
+                if k > 0:
+                    yaw = ref_traj[2, k-1]
+                else:
+                    yaw = robot_state[2] # Fallback
 
-            ref_traj[0, k] = pose.position.x
-            ref_traj[1, k] = pose.position.y
+            # Angle unwrapping
+            if k == 0:
+                base_yaw = robot_state[2]
+            else:
+                base_yaw = ref_traj[2, k-1]
+
+            while yaw - base_yaw > np.pi:
+                yaw -= 2 * np.pi
+            while yaw - base_yaw < -np.pi:
+                yaw += 2 * np.pi
+
             ref_traj[2, k] = yaw
 
         return ref_traj
