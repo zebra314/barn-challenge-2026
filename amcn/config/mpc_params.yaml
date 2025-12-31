@@ -1,15 +1,14 @@
-horizon: 20          # N: 預測步數
-dt: 0.1              # dt: 時間間隔 (秒)
+horizon: 20
+dt: 0.1
 
-# 機器人限制 (Jackal)
+# Robot Limits
 v_max: 2.0
 v_min: 0.0
 omega_max: 2.0
 
-# 權重矩陣 (Cost Function Weights)
-# Q: 狀態誤差權重, R: 控制輸入權重
+# Cost Function Weights
 weight_pos_x: 10.0
 weight_pos_y: 10.0
-weight_theta: 5.0
-weight_vel: 1.0      # 鼓勵保持速度
-weight_omega: 0.1    # 懲罰劇烈轉向
+weight_theta: 1.0
+weight_vel: 1.0
+weight_omega: 0.1
