@@ -1,7 +1,0 @@
-<library path="lib/libhlsd_local_planner">
-  <class name="hlsd_local_planner/HLSDPlanner" type="hlsd_local_planner::HLSDPlanner" base_class_type="nav_core::BaseLocalPlanner">
-    <description>
-      A Hallucinated Learning, Sober Deployment (HLSD) local planner using ONNX Runtime.
-    </description>
-  </class>
-</library>
