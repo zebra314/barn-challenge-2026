@@ -46,11 +46,12 @@ def simulate_robot(current_state, v, omega, dt):
     return np.array([x_new, y_new, theta_new])
 
 def main():
-    config_path = Path(__file__).parent.parent / 'config' / 'mpc_params.yaml'
+    config_path = Path(__file__).parent.parent / 'configs' / 'mpc_params.yaml'
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
 
     print("Initializing MPC Solver...")
+    config = config['mpc']
     mpc = CasadiMPC(config)
 
     # 2. 初始化模擬狀態

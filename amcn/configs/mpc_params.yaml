@@ -1,0 +1,15 @@
+mpc:
+  horizon: 20
+  dt: 0.1
+
+  # Robot Limits
+  v_max: 2.0
+  v_min: 0.0
+  omega_max: 2.0
+
+  # Cost Function Weights
+  weight_pos_x: 10.0
+  weight_pos_y: 10.0
+  weight_theta: 1.0
+  weight_vel: 1.0
+  weight_omega: 0.1

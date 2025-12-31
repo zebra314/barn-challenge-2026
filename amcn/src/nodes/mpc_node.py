@@ -7,16 +7,13 @@ from nav_msgs.msg import Path, Odometry
 from geometry_msgs.msg import Twist, PoseStamped
 from amcn.optimization.mpc_solver import CasadiMPC
 
+
 class MPCNode:
     def __init__(self):
         rospy.init_node('mpc_controller')
 
-        self.config = {
-            'horizon': 20, 'dt': 0.1,
-            'v_max': 2.0, 'v_min': 0.0, 'omega_max': 2.0,
-            'weight_pos_x': 5.0, 'weight_pos_y': 5.0, 'weight_theta': 2.0,
-            'weight_vel': 0.5, 'weight_omega': 0.1
-        }
+        self.config = rospy.get_param('~mpc')
+        print("Loaded config:", self.config)
 
         self.mpc = CasadiMPC(self.config)
         self.tf_buffer = tf2_ros.Buffer()
