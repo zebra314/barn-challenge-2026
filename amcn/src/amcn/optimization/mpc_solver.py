@@ -6,8 +6,8 @@ class CasadiMPC:
     def __init__(self, config):
         self.N = config['horizon']
         self.dt = config['dt']
-        self.model = JackalModel(self.dt)
 
+        self.model = JackalModel(self.dt)
         self.opti = ca.Opti()
 
         # Decision variables
@@ -33,12 +33,12 @@ class CasadiMPC:
             x_next = F(self.X[:, k], self.U[:, k])
             self.opti.subject_to(self.X[:, k+1] == x_next)
 
-            # Cost Function
+            # State error cost
             error_state = self.X[:, k] - self.P_ref[:, k]
             Q = ca.diag([config['weight_pos_x'], config['weight_pos_y'], config['weight_theta']])
             cost += ca.mtimes([error_state.T, Q, error_state])
 
-            # Control Regularization
+            # Control effort cost
             R = ca.diag([config['weight_vel'], config['weight_omega']])
             cost += ca.mtimes([self.U[:, k].T, R, self.U[:, k]])
 
@@ -49,10 +49,18 @@ class CasadiMPC:
         self.opti.subject_to(self.opti.bounded(config['v_min'], self.U[0, :], config['v_max']))
         self.opti.subject_to(self.opti.bounded(-config['omega_max'], self.U[1, :], config['omega_max']))
 
-        # Set solver options (IPOPT)
-        p_opts = {'expand': True} # Speed up computation
-        s_opts = {'max_iter': 100, 'print_level': 0, 'sb': 'yes'} # Silent mode
-        self.opti.solver('ipopt', p_opts, s_opts)
+        # Set options
+        plugin_options = {
+            'expand': True,
+            'print_time': False
+        }
+        solver_options = {
+            'max_iter': 100,
+            'print_level': 0,
+            'sb': 'yes', # suppress the startup banner
+            'print_user_options': 'no',
+        }
+        self.opti.solver('ipopt', plugin_options, solver_options)
 
     def solve(self, current_state, reference_trajectory):
         """
