@@ -22,7 +22,7 @@ class DynamicMPCNode:
         self.current_odom = None
         self.current_obstacles = []
 
-        rospy.Subscriber('/move_base/NavfnROS/plan', Path, self.path_cb)
+        rospy.Subscriber('/move_base/GlobalPlanner/plan', Path, self.path_cb)
         rospy.Subscriber('/odometry/filtered', Odometry, self.odom_cb)
         rospy.Subscriber('/tracked_obstacles', Float32MultiArray, self.obstacle_cb)
 
