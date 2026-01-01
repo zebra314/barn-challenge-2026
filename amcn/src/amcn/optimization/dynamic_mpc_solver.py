@@ -8,16 +8,16 @@ class DynamicMPCSolver:
 
         # Weights for the cost function
         # Q: State error [x, y, theta]
-        self.Q_x = 5.0
-        self.Q_y = 5.0
-        self.Q_theta = 3.0
+        self.Q_x = 3.0
+        self.Q_y = 3.0
+        self.Q_theta = 1.0
 
         # R: Control effort penalty [v, omega]
-        self.R_v = 0.1
-        self.R_omega = 0.5
+        self.R_v = 0.2
+        self.R_omega = 0.7
 
         # Rd: Control rate change penalty (Jerk minimization)
-        self.Rd_v = 0.1
+        self.Rd_v = 0.5
         self.Rd_omega = 0.5
 
         # Slack: Obstacle avoidance soft constraint penalty (set very high to ensure violation only when necessary)
@@ -25,7 +25,7 @@ class DynamicMPCSolver:
 
         # === Physical Constraints ===
         self.v_max = 2.0
-        self.v_min = -1.0
+        self.v_min = 0.0
         self.omega_max = 1.5
 
         # === Obstacle Settings ===
@@ -82,7 +82,7 @@ class DynamicMPCSolver:
 
         # Control cost
         for k in range(self.N):
-            cost += self.R_v * v[k] + self.R_omega * omega[k]**2
+            cost += self.R_v * v[k]**2 + self.R_omega * omega[k]**2
 
         # Smoothness
         for k in range(self.N - 1):

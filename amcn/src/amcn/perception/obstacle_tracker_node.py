@@ -4,7 +4,9 @@ from std_msgs.msg import Float32MultiArray
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Point
 import tf.transformations as tf_trans
+from std_msgs.msg import Int32
 
+from amcn.common.enums import Scene
 from amcn.perception.obstacle_tracker import SimpleTracker
 
 class ObstacleTrackerNode:
@@ -13,15 +15,15 @@ class ObstacleTrackerNode:
         self.tracker = SimpleTracker(dt_threshold=dt_threshold)
         self.last_time = rospy.Time.now()
 
-        # 3. Communication
-        # topic for raw obstacles from Lidar Clustering
+        # Subscribers
         self.sub_raw = rospy.Subscriber('/obstacles_raw', Float32MultiArray, self.callback, queue_size=1)
 
-        # topic for MPC
+        # Publishers
         self.pub_tracked = rospy.Publisher('/tracked_obstacles', Float32MultiArray, queue_size=1)
-
-        # topic for rviz debug
         self.pub_debug = rospy.Publisher('/tracker_markers', MarkerArray, queue_size=1)
+        self.pub_scene = rospy.Publisher('/scene', Int32, queue_size=1, latch=True)
+
+        self.last_scene_mode = None
 
         rospy.loginfo("Obstacle Tracker Node Started.")
 
@@ -114,7 +116,8 @@ class ObstacleTrackerNode:
 
             # --- C. Velocity arrow (yellow) ---
             speed = (v[0]**2 + v[1]**2)**0.5
-            if speed > 0.1: # Do not display if speed is too low
+            is_dynamic = (self.tracker.current_scene in [Scene.DYNAMIC_OPEN, Scene.DYNAMIC_CROWD])
+            if speed > 0.1 and is_dynamic:
                 arrow = Marker()
                 arrow.header.frame_id = "odom"
                 arrow.header.stamp = timestamp

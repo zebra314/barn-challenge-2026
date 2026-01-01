@@ -20,7 +20,7 @@ class MPCNode:
         self.current_odom = None
 
 
-        rospy.Subscriber('/move_base/NavfnROS/plan', Path, self.path_cb)
+        rospy.Subscriber('/move_base/GlobalPlanner/plan', Path, self.path_cb)
         rospy.Subscriber('/odometry/filtered', Odometry, self.odom_cb)
         self.cmd_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
 
