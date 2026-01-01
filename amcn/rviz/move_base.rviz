@@ -169,6 +169,16 @@ Visualization Manager:
       Topic: /move_base/TrajectoryPlannerROS/local_plan
       Unreliable: false
       Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /tracker_markers
+      Name: Obstacles
+      Namespaces:
+        tracked_id: true
+        tracked_shape: true
+        tracked_vel: true
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -197,7 +207,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 21.855533599853516
+      Distance: 13.10666275024414
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
