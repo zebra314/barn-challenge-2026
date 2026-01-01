@@ -1,39 +1,55 @@
-#!/usr/bin/env python
 import rospy
 import numpy as np
 import tf2_ros
 import tf2_geometry_msgs
 from nav_msgs.msg import Path, Odometry
 from geometry_msgs.msg import Twist, PoseStamped
-from amcn.optimization.mpc_solver import CasadiMPC
+from std_msgs.msg import Float32MultiArray
 
+from amcn.optimization.dynamic_mpc_solver import DynamicMPCSolver
 
-class MPCNode:
+class DynamicMPCNode:
     def __init__(self):
-        rospy.init_node('mpc_controller')
-
         self.config = rospy.get_param('~mpc')
         print("Loaded config:", self.config)
 
-        self.mpc = CasadiMPC(self.config)
+        self.solver = DynamicMPCSolver(N=self.config['horizon'], dt=self.config['dt'])
+
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         self.global_path = None
         self.current_odom = None
-
+        self.current_obstacles = []
 
         rospy.Subscriber('/move_base/NavfnROS/plan', Path, self.path_cb)
         rospy.Subscriber('/odometry/filtered', Odometry, self.odom_cb)
-        self.cmd_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
+        rospy.Subscriber('/tracked_obstacles', Float32MultiArray, self.obstacle_cb)
 
-        rospy.Timer(rospy.Duration(0.05), self.control_loop)
+        self.cmd_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
+        self.pred_path_pub = rospy.Publisher('/mpc/predicted_path', Path, queue_size=1)
+
+        rospy.Timer(rospy.Duration(self.config['dt']), self.control_loop)
 
     def odom_cb(self, msg):
         self.current_odom = msg
 
     def path_cb(self, msg):
         self.global_path = msg
+
+    def obstacle_cb(self, msg):
+        """
+        Handler for obstacle data
+        Format: [x, y, theta, a, b, vx, vy, ...] (7 elements per obstacle)
+        """
+        if not msg.data:
+            self.current_obstacles = []
+        else:
+            # Reshape to a list of (N, 7)
+            try:
+                self.current_obstacles = np.array(msg.data).reshape(-1, 7).tolist()
+            except ValueError:
+                self.current_obstacles = []
 
     def get_robot_state(self):
         if not self.current_odom: return None
@@ -46,6 +62,11 @@ class MPCNode:
         return np.array([pose.position.x, pose.position.y, euler[2]])
 
     def transform_path_to_odom(self, path_msg):
+        if not path_msg: return None
+
+        if path_msg.header.frame_id == "odom":
+            return path_msg.poses
+
         try:
             transform = self.tf_buffer.lookup_transform("odom", path_msg.header.frame_id, rospy.Time(0), rospy.Duration(1.0))
             new_path = []
@@ -58,7 +79,6 @@ class MPCNode:
             return None
 
     def get_local_reference(self, robot_state, transformed_path):
-
         if not transformed_path: return None
 
         min_dist = float('inf')
@@ -106,24 +126,51 @@ class MPCNode:
 
         return ref_traj
 
+    def publish_predicted_path(self, pred_traj_np):
+        """
+        Convert the numpy array output from the solver to a Path message and publish it
+        pred_traj_np: shape (2, N+1) -> [[x0, x1...], [y0, y1...]]
+        """
+        msg = Path()
+        msg.header.frame_id = "odom"
+        msg.header.stamp = rospy.Time.now()
+
+        for i in range(pred_traj_np.shape[1]):
+            pose = PoseStamped()
+            pose.header = msg.header
+            pose.pose.position.x = pred_traj_np[0, i]
+            pose.pose.position.y = pred_traj_np[1, i]
+            pose.pose.orientation.w = 1.0
+            msg.poses.append(pose)
+
+        self.pred_path_pub.publish(msg)
+
     def control_loop(self, event):
         if self.global_path is None or self.current_odom is None:
             return
 
         state = self.get_robot_state()
-
         odom_path = self.transform_path_to_odom(self.global_path)
 
         ref_traj = self.get_local_reference(state, odom_path)
         if ref_traj is None: return
 
-        v, omega = self.mpc.solve(state, ref_traj)
+        try:
+            control, pred_traj = self.solver.solve(state, ref_traj, self.current_obstacles)
 
-        cmd = Twist()
-        cmd.linear.x = v
-        cmd.angular.z = omega
-        self.cmd_pub.publish(cmd)
+            # 4. Extract control commands
+            v = control[0]
+            omega = control[1]
 
-if __name__ == '__main__':
-    MPCNode()
-    rospy.spin()
+            # 5. Publish control commands
+            cmd = Twist()
+            cmd.linear.x = v
+            cmd.angular.z = omega
+            self.cmd_pub.publish(cmd)
+
+            # 6. Publish predicted trajectory for visualization
+            self.publish_predicted_path(pred_traj)
+
+        except Exception as e:
+            rospy.logerr_throttle(1.0, "MPC Solve Error: {}".format(e))
+            self.cmd_pub.publish(Twist())
