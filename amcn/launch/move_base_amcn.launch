@@ -16,7 +16,8 @@
         <remap from="cmd_vel" to="cmd_vel_faked_by_move_base" />
     </node>
 
-    <node pkg="amcn" type="mpc_node.py" name="mpc_controller" output="screen">
+    <!-- <node pkg="amcn" type="mpc_node.py" name="mpc_controller" output="screen"> -->
+    <node pkg="amcn" type="dynamic_mpc_node.py" name="mpc_controller" output="screen">
         <remap from="global_plan" to="/move_base/NavfnROS/plan" />
         <remap from="cmd_vel" to="/cmd_vel" />
 
