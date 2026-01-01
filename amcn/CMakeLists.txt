@@ -9,16 +9,15 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_geometry_msgs
 )
 
-# 1. 啟用 Python 模組安裝 (這會呼叫 setup.py)
 catkin_python_setup()
 
 catkin_package(
   CATKIN_DEPENDS rospy geometry_msgs nav_msgs tf2_ros
 )
 
-# 2. 安裝 Python 可執行節點
+file(GLOB NODE_PY_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/nodes/*.py")
 catkin_install_python(PROGRAMS
-  src/nodes/mpc_node.py
+  ${NODE_PY_FILES}
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
