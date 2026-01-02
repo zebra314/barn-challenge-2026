@@ -12,6 +12,7 @@ RUN apt-get install -y python3-pip
 RUN apt-get install -y python3-dev
 RUN apt-get install -y git
 RUN apt-get install -y curl
+RUN apt-get install -y tmux
 RUN apt-get install -y zsh
 RUN chsh -s $(which zsh)
 
