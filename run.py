@@ -188,6 +188,52 @@ if __name__ == "__main__":
     nav_metric = int(success) * optimal_time / np.clip(actual_time, 2 * optimal_time, 8 * optimal_time)
     print("Navigation metric: %.4f" %(nav_metric))
 
+    # ------------------------------ Detailed report ----------------------------- #
+    optimal_time = path_length / 2.0
+    actual_time = curr_time - start_time
+
+    lower_bound = 2 * optimal_time
+    upper_bound = 8 * optimal_time
+    clipped_denominator = np.clip(actual_time, lower_bound, upper_bound)
+
+    if clipped_denominator == 0:
+        clipped_denominator = 1e-6
+
+    nav_metric = int(success) * optimal_time / clipped_denominator
+
+    avg_speed = path_length / actual_time if actual_time > 0 else 0.0
+
+    print("\n" + "="*40)
+    print("NAVIGATION PERFORMANCE REPORT")
+    print("="*40)
+    print("Result Status    : %s" % ('SUCCESS' if success else 'FAILURE'))
+    print("Path Length      : %.2f m" % path_length)
+    print("Final Score      : %.4f (Max possible: 0.5000)" % nav_metric)
+    print("-"*40)
+    print("TIME ANALYSIS")
+    print("  Optimal Time   : %.2f s (Based on 2.0 m/s)" % optimal_time)
+    print("  Actual Time    : %.2f s" % actual_time)
+    print("  Avg Speed      : %.2f m/s" % avg_speed)
+    print("-"*40)
+    print("METRIC BOUNDS (Clip Range)")
+    print("  Lower (2*Opt)  : %.2f s  <-- max score ceiling" % lower_bound)
+    print("  Upper (8*Opt)  : %.2f s  <-- min score floor" % upper_bound)
+    print("  Used Denom.    : %.2f s" % clipped_denominator)
+    print("-"*40)
+
+    if not success:
+        print("TIP: Priority #1 is SAFETY. Metric is 0 if collision occurs.")
+    elif actual_time < lower_bound:
+        print("TIP: You are TOO FAST! Time was clipped.")
+        print("     Slow down to ensure safety; extra speed yields no points.")
+    elif actual_time > upper_bound:
+        print("TIP: You are TOO SLOW. The penalty is maxed out.")
+        print("     Check if robot got stuck or path was too zigzag.")
+    else:
+        print("TIP: Good Pace. Try to optimize path smoothness.")
+    print("="*40 + "\n")
+    # --------------------------------------------------------------------------- #
+
     with open(args.out, "a") as f:
         f.write("%d %d %d %d %.4f %.4f\n" %(args.world_idx, success, collided, (curr_time - start_time)>=100, curr_time - start_time, nav_metric))
 

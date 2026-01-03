@@ -79,39 +79,45 @@ class DynamicMPCNode:
             return None
 
     def get_local_reference(self, robot_state, transformed_path):
-        if not transformed_path: return None
+        if not transformed_path:
+            return None
 
-        min_dist = float('inf')
-        closest_idx = 0
         rx, ry = robot_state[0], robot_state[1]
-
         path_np = np.array([[p.pose.position.x, p.pose.position.y] for p in transformed_path])
         dists = np.linalg.norm(path_np - np.array([rx, ry]), axis=1)
         closest_idx = np.argmin(dists)
 
         ref_traj = np.zeros((3, self.config['horizon'] + 1))
 
+        target_vel = self.config.get('v_max', 2.0) * 0.6
+        dt = self.config.get('dt', 0.1)
+        step_dist = target_vel * dt
+
+        curr_idx = closest_idx
+
         for k in range(self.config['horizon'] + 1):
-            idx = min(closest_idx + k, len(transformed_path) - 1)
+            pose = transformed_path[curr_idx].pose.position
+            ref_traj[0, k] = pose.x
+            ref_traj[1, k] = pose.y
 
-            # Pose
-            curr_p = transformed_path[idx].pose.position
-            ref_traj[0, k] = curr_p.x
-            ref_traj[1, k] = curr_p.y
+            if k < self.config['horizon']:
+                temp_idx = curr_idx
+                temp_dist = 0.0
+                while temp_idx < len(transformed_path) - 1:
+                    p1 = transformed_path[temp_idx].pose.position
+                    p2 = transformed_path[temp_idx+1].pose.position
+                    d = np.hypot(p2.x - p1.x, p2.y - p1.y)
+                    temp_dist += d
+                    temp_idx += 1
+                    if temp_dist >= step_dist * 0.5:
+                        break
 
-            if idx < len(transformed_path) - 1:
-                next_p = transformed_path[idx + 1].pose.position
-                dx = next_p.x - curr_p.x
-                dy = next_p.y - curr_p.y
-                yaw = np.arctan2(dy, dx)
+                next_p = transformed_path[temp_idx].pose.position
+                yaw = np.arctan2(next_p.y - pose.y, next_p.x - pose.x)
             else:
-                # use previous point for last point
-                if k > 0:
-                    yaw = ref_traj[2, k-1]
-                else:
-                    yaw = robot_state[2] # Fallback
+                yaw = ref_traj[2, k-1]
 
-            # Angle unwrapping
+            # Yaw unwrapping
             if k == 0:
                 base_yaw = robot_state[2]
             else:
@@ -123,6 +129,18 @@ class DynamicMPCNode:
                 yaw += 2 * np.pi
 
             ref_traj[2, k] = yaw
+
+            dist_travelled = 0.0
+            while curr_idx < len(transformed_path) - 1:
+                p1 = transformed_path[curr_idx].pose.position
+                p2 = transformed_path[curr_idx+1].pose.position
+                d = np.hypot(p2.x - p1.x, p2.y - p1.y)
+
+                dist_travelled += d
+                curr_idx += 1
+
+                if dist_travelled >= step_dist:
+                    break
 
         return ref_traj
 
