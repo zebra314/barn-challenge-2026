@@ -45,7 +45,7 @@ class MPCSolver:
 
         # Obstacle
         self.max_obs_num = config['max_obs_num']
-        self.robot_radius = config['robot_radius']
+        self.robot_radius = self.opti.parameter()
         self.obstacles = self.opti.parameter(7, self.max_obs_num) # [x, y, theta, a, b, vx, vy]^T
 
         # Warm start
