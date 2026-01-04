@@ -105,10 +105,14 @@ class MPCSolver:
         err_v = v[1:] - v[:-1]
         err_omega = omega[1:] - omega[:-1]
 
-        cost += ca.sum2(self.R_v * v**2)
+        # cost += ca.sum2(self.R_v * v**2)
         cost += ca.sum2(self.R_omega * omega**2)
         cost += ca.sum2(self.Rd_v * err_v**2)
         cost += ca.sum2(self.Rd_omega * err_omega**2)
+
+        v_thresh = 0.1
+        W_move = 500.0
+        cost += ca.sum2(W_move * ca.fmax(0, v_thresh - v)**2)
 
         # Slack
         cost += ca.sum2(self.W_slack * self.slack**2)
