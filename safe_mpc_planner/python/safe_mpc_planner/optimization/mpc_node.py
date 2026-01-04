@@ -106,7 +106,7 @@ class MPCNode:
 
         ref_traj = np.zeros((3, self.config['horizon'] + 1))
 
-        target_vel = self.config.get('max_v', 2.0) * 0.6
+        target_vel = 1.0
         dt = self.config.get('dt', 0.1)
         step_dist = target_vel * dt
 
