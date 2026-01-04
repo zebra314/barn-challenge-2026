@@ -6,14 +6,14 @@ from nav_msgs.msg import Path, Odometry
 from geometry_msgs.msg import Twist, PoseStamped
 from std_msgs.msg import Float32MultiArray
 
-from safe_mpc_planner.optimization.dynamic_mpc_solver import DynamicMPCSolver
+from safe_mpc_planner.optimization.mpc_solver import MPCSolver
 
-class DynamicMPCNode:
+class MPCNode:
     def __init__(self):
         self.config = rospy.get_param('~mpc')
         print("Loaded config:", self.config)
 
-        self.solver = DynamicMPCSolver(N=self.config['horizon'], dt=self.config['dt'])
+        self.solver = MPCSolver(self.config)
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -89,7 +89,7 @@ class DynamicMPCNode:
 
         ref_traj = np.zeros((3, self.config['horizon'] + 1))
 
-        target_vel = self.config.get('v_max', 2.0) * 0.6
+        target_vel = self.config.get('max_v', 2.0) * 0.6
         dt = self.config.get('dt', 0.1)
         step_dist = target_vel * dt
 

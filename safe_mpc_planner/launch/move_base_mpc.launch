@@ -15,10 +15,10 @@
     </node>
 
     <node pkg="safe_mpc_planner" type="optimization_node.py" name="optimization_node" output="screen">
+        <rosparam file="$(find safe_mpc_planner)/configs/mpc_params.yaml" command="load" />
+
         <remap from="global_plan" to="/move_base/NavfnROS/plan" />
         <remap from="cmd_vel" to="/cmd_vel" />
-
-        <rosparam file="$(find safe_mpc_planner)/configs/mpc_params.yaml" command="load" />
     </node>
 
     <node pkg="safe_mpc_planner" type="perception_node.py" name="perception" output="screen">
