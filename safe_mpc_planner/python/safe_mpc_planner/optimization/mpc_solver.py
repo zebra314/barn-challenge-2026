@@ -99,7 +99,7 @@ class MPCSolver:
 
         cost += ca.sum2(self.Q_x * err_x**2)
         cost += ca.sum2(self.Q_y * err_y**2)
-        cost += ca.sum2(self.Q_theta * err_th**2)
+        cost += ca.sum2(self.Q_theta * (1 - ca.cos(err_th)))
 
         # Control error
         err_v = v[1:] - v[:-1]
