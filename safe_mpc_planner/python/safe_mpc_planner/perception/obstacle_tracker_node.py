@@ -6,8 +6,8 @@ from geometry_msgs.msg import Point
 import tf.transformations as tf_trans
 from std_msgs.msg import Int32
 
-from amcn.common.enums import Scene
-from amcn.perception.obstacle_tracker import SimpleTracker
+from safe_mpc_planner.common.enums import Scene
+from safe_mpc_planner.perception.obstacle_tracker import SimpleTracker
 
 class ObstacleTrackerNode:
     def __init__(self):

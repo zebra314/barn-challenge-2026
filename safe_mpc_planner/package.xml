@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>amcn_py</name>
+  <name>safe_mpc_planner</name>
   <version>0.0.1</version>
-  <description>Adaptive MPC-CBF Navigator for BARN challenge</description>
+  <description>Safe MPC Planner</description>
 
   <maintainer email="user@example.com">User</maintainer>
   <license>MIT</license>

@@ -3,8 +3,8 @@ from distutils.core import setup
 from catkin_pkg.python_setup import generate_distutils_setup
 
 d = generate_distutils_setup(
-    packages=['amcn_py'],
-    package_dir={'': 'src'},
+    packages=['safe_mpc_planner'],
+    package_dir={'': 'python'},
 )
 
 setup(**d)

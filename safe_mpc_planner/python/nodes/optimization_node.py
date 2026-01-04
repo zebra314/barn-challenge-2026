@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import rospy
-from amcn.optimization.dynamic_mpc_node import DynamicMPCNode
+from safe_mpc_planner.optimization.dynamic_mpc_node import DynamicMPCNode
 
 if __name__ == '__main__':
     try:

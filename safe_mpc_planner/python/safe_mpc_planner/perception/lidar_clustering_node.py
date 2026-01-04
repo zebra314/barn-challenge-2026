@@ -5,7 +5,7 @@ from std_msgs.msg import Float32MultiArray
 from visualization_msgs.msg import Marker, MarkerArray
 import tf.transformations as tf_trans
 
-from amcn.perception.lidar_cluster import LidarCluster
+from safe_mpc_planner.perception.lidar_cluster import LidarCluster
 
 class LidarClusteringNode:
     def __init__(self):

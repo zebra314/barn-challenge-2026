@@ -1,6 +1,6 @@
 import casadi as ca
 import numpy as np
-from amcn.optimization.robot_model import JackalModel
+from safe_mpc_planner.optimization.robot_model import JackalModel
 
 class CasadiMPC:
     def __init__(self, config):

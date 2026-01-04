@@ -98,7 +98,7 @@ if __name__ == "__main__":
     ##########################################################################################
 
     # launch_file = join(base_path, '..', 'jackal_helper/launch/move_base_DWA.launch')
-    launch_file = join(base_path, '..', 'amcn/launch/move_base_amcn.launch')
+    launch_file = join(base_path, '..', 'safe_mpc_planner/launch/move_base_mpc.launch')
     nav_stack_process = subprocess.Popen([
         'roslaunch',
         launch_file,

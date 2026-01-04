@@ -5,7 +5,7 @@ import tf2_ros
 import tf2_geometry_msgs
 from nav_msgs.msg import Path, Odometry
 from geometry_msgs.msg import Twist, PoseStamped
-from amcn.optimization.mpc_solver import CasadiMPC
+from safe_mpc_planner.optimization.mpc_solver import CasadiMPC
 
 class MPCNode:
     def __init__(self):

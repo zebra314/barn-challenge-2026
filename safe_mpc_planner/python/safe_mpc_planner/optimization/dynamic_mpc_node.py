@@ -6,7 +6,7 @@ from nav_msgs.msg import Path, Odometry
 from geometry_msgs.msg import Twist, PoseStamped
 from std_msgs.msg import Float32MultiArray
 
-from amcn.optimization.dynamic_mpc_solver import DynamicMPCSolver
+from safe_mpc_planner.optimization.dynamic_mpc_solver import DynamicMPCSolver
 
 class DynamicMPCNode:
     def __init__(self):

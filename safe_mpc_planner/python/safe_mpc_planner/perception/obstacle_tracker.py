@@ -1,5 +1,5 @@
 import numpy as np
-from amcn.common.enums import Scene
+from safe_mpc_planner.common.enums import Scene
 
 class SimpleTracker:
     def __init__(self, dt_threshold=1.0):

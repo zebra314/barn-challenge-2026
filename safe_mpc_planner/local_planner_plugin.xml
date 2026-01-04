@@ -1,0 +1,7 @@
+<library path="lib/libsafe_mpc_planner">
+  <class name="safe_mpc_planner/MPCPlanner" type="safe_mpc_planner::MPCPlanner" base_class_type="nav_core::BaseLocalPlanner">
+    <description>
+        A custom MPC local planner using CasADi.
+    </description>
+  </class>
+</library>
