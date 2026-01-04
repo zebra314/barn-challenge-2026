@@ -1,18 +1,17 @@
 import numpy as np
-from safe_mpc_planner.common.enums import Scene
 
 class SimpleTracker:
-    def __init__(self, dt_threshold=1.0):
+    def __init__(self, is_dynamic):
         # Store {id: {'state': [x, y, theta, a, b], 'vel': [vx, vy, omega], 'age': 0}}
         self.tracks = {}
         self.next_id = 0
-        self.dt_threshold = dt_threshold # If dt is too large (frame drop), reset velocity calculation
+        self.dt_threshold = 1.0
 
         # Smoothing coefficients (0.0~1.0), smaller is smoother but with higher delay
         self.alpha_pos = 0.3
         self.alpha_shape = 0.2  # Shape usually changes little, can use heavier filtering
 
-        self.current_scene = Scene.STATIC_OPEN
+        self.is_dynamic = is_dynamic
         self.consecutive_dynamic_frames = 0
         self.dynamic_trigger_thresh = 8
         self.motion_threshold = 0.5
@@ -136,43 +135,6 @@ class SimpleTracker:
 
         self.tracks = new_tracks
 
-        if self.current_scene in [Scene.DYNAMIC_OPEN, Scene.DYNAMIC_CROWD]:
-            return self.extract_mpc_params()
-
-        frame_has_motion = False
-        for tid, track in self.tracks.items():
-            v_mag = np.linalg.norm(track['vel'][:2])
-            dist = np.linalg.norm(track['state'][:2])
-            age = track['age']
-
-            obs_a = track['state'][3]
-            obs_b = track['state'][4]
-
-            major_axis = max(obs_a, obs_b) * 2.0
-            minor_axis = min(obs_a, obs_b) * 2.0
-
-            aspect_ratio = major_axis / max(minor_axis, 0.05)
-            is_wall_shape = (aspect_ratio > 4.0) and (major_axis > 0.5)
-
-            not_normal_size = (major_axis > 1.2 or minor_axis < 0.2)
-
-            if not_normal_size or is_wall_shape:
-                continue
-
-            if dist < self.max_reliable_range and v_mag > self.motion_threshold and age >= 15 and v_mag < 3.5:
-                frame_has_motion = True
-                print("Detected motion: Track ID {}, Speed {:.2f} m/s, Distance {:.2f} m".format(tid, v_mag, dist))
-                break
-
-        if frame_has_motion:
-            self.consecutive_dynamic_frames += 1
-        else:
-            self.consecutive_dynamic_frames = max(0, self.consecutive_dynamic_frames - 1)
-
-        if self.consecutive_dynamic_frames >= self.dynamic_trigger_thresh:
-            self.current_scene = Scene.DYNAMIC_OPEN
-            print("Switching to DYNAMIC_OPEN scene mode.")
-
         return self.extract_mpc_params()
 
     def extract_mpc_params(self):
@@ -182,12 +144,11 @@ class SimpleTracker:
         and most obstacles in BARN move by translation.
         """
         obs_list = []
-        is_dynamic = (self.current_scene in [Scene.DYNAMIC_OPEN, Scene.DYNAMIC_CROWD])
         for tid, track in self.tracks.items():
             s = track['state']
 
             # Ignore omega for obstacle tracking output
-            v = track['vel'] if is_dynamic else [0.0, 0.0]
+            v = track['vel'] if self.is_dynamic else [0.0, 0.0]
 
             # [x, y, theta, a, b, vx, vy]
             obs_list.append([s[0], s[1], s[2], s[3], s[4], v[0], v[1]])

@@ -3,6 +3,7 @@ import numpy as np
 import tf2_ros
 import tf2_geometry_msgs
 from nav_msgs.msg import Path, Odometry
+from std_msgs.msg import Float32MultiArray, Bool
 from geometry_msgs.msg import Twist, PoseStamped
 from std_msgs.msg import Float32MultiArray
 
@@ -10,18 +11,18 @@ from safe_mpc_planner.optimization.mpc_solver import MPCSolver
 
 class MPCNode:
     def __init__(self):
-        self.config = rospy.get_param('~mpc')
-        print("Loaded config:", self.config)
-
+        self.config = rospy.get_param('~mpc')['static']
         self.solver = MPCSolver(self.config)
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
+        self.is_dynamic = None
         self.global_path = None
         self.current_odom = None
         self.current_obstacles = []
 
+        rospy.Subscriber('/scene/is_dynamic', Bool, self.is_dynamic_cb)
         rospy.Subscriber('/move_base/GlobalPlanner/plan', Path, self.path_cb)
         rospy.Subscriber('/odometry/filtered', Odometry, self.odom_cb)
         rospy.Subscriber('/tracked_obstacles', Float32MultiArray, self.obstacle_cb)
@@ -50,6 +51,22 @@ class MPCNode:
                 self.current_obstacles = np.array(msg.data).reshape(-1, 7).tolist()
             except ValueError:
                 self.current_obstacles = []
+
+    def is_dynamic_cb(self, msg):
+        """
+        msg.data: True (Dynamic), False (Static)
+        """
+        self.is_dynamic = msg.data
+
+        if self.is_dynamic:
+            self.config = rospy.get_param('~mpc')['dynamic']
+            rospy.logwarn("[MPCNode] Scene detected as DYNAMIC. Switching to CONSERVATIVE mode.")
+
+        else:
+            self.config = rospy.get_param('~mpc')['static']
+            rospy.loginfo("[MPCNode] Scene detected as STATIC. Switching to AGGRESSIVE mode.")
+
+        self.solver.update_params(self.config)
 
     def get_robot_state(self):
         if not self.current_odom: return None
@@ -165,6 +182,11 @@ class MPCNode:
 
     def control_loop(self, event):
         if self.global_path is None or self.current_odom is None:
+            return
+
+        if self.is_dynamic is None:
+            if int(rospy.get_time()) % 2 == 0:
+                rospy.loginfo_throttle(2.0, "[MPCNode] Waiting for Scene Classifier result...")
             return
 
         state = self.get_robot_state()

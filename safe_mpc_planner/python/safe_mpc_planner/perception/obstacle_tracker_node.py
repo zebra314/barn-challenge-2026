@@ -4,18 +4,18 @@ from std_msgs.msg import Float32MultiArray
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Point
 import tf.transformations as tf_trans
-from std_msgs.msg import Int32
+from std_msgs.msg import Int32, Bool
 
-from safe_mpc_planner.common.enums import Scene
 from safe_mpc_planner.perception.obstacle_tracker import SimpleTracker
 
 class ObstacleTrackerNode:
     def __init__(self):
-        dt_threshold = rospy.get_param('~dt_threshold', 1.0)
-        self.tracker = SimpleTracker(dt_threshold=dt_threshold)
+        self.tracker = None
+        self.is_dynamic = None
         self.last_time = rospy.Time.now()
 
         # Subscribers
+        self.sub_is_dynamic = rospy.Subscriber('/scene/is_dynamic', Bool, self.is_dynamic_callback, queue_size=1)
         self.sub_raw = rospy.Subscriber('/obstacles_raw', Float32MultiArray, self.callback, queue_size=1)
 
         # Publishers
@@ -23,11 +23,20 @@ class ObstacleTrackerNode:
         self.pub_debug = rospy.Publisher('/tracker_markers', MarkerArray, queue_size=1)
         self.pub_scene = rospy.Publisher('/scene', Int32, queue_size=1, latch=True)
 
-        self.last_scene_mode = None
 
-        rospy.loginfo("Obstacle Tracker Node Started.")
+    def is_dynamic_callback(self, msg):
+        new_status = msg.data
+        if self.is_dynamic != new_status:
+            self.is_dynamic = new_status
+            self.tracker = SimpleTracker(is_dynamic=self.is_dynamic)
+            mode_str = "DYNAMIC" if self.is_dynamic else "STATIC"
+            rospy.logwarn("[Tracker] Scene changed to {}. Tracker re-initialized.".format(mode_str))
 
     def callback(self, msg):
+        if self.tracker is None:
+            rospy.logwarn_throttle(5.0, "[Tracker] Waiting for is_dynamic result...")
+            return
+
         current_time = rospy.Time.now()
         dt = (current_time - self.last_time).to_sec()
         self.last_time = current_time
@@ -116,8 +125,7 @@ class ObstacleTrackerNode:
 
             # --- C. Velocity arrow (yellow) ---
             speed = (v[0]**2 + v[1]**2)**0.5
-            is_dynamic = (self.tracker.current_scene in [Scene.DYNAMIC_OPEN, Scene.DYNAMIC_CROWD])
-            if speed > 0.1 and is_dynamic:
+            if speed > 0.1 and self.tracker.is_dynamic:
                 arrow = Marker()
                 arrow.header.frame_id = "odom"
                 arrow.header.stamp = timestamp

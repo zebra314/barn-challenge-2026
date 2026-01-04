@@ -1,25 +1,52 @@
 mpc:
-  horizon: 20
-  dt: 0.1
+  static:
+    horizon: 20
+    dt: 0.1
 
-  # Robot limits
-  max_v: 2.0
-  min_v: 0.0
-  max_omega: 1.5
+    # Robot limits
+    max_v: 2.0
+    min_v: 0.0
+    max_omega: 1.5
 
-  # State costs
-  Q_x: 3.0
-  Q_y: 3.0
-  Q_theta: 0.3
+    # State costs
+    Q_x: 3.0
+    Q_y: 3.0
+    Q_theta: 0.3
 
-  # Control costs
-  R_v: 0.1
-  R_omega: 0.7
-  Rd_v: 0.2
-  Rd_omega: 0.5
+    # Control costs
+    R_v: 0.1
+    R_omega: 0.7
+    Rd_v: 0.2
+    Rd_omega: 0.5
 
-  # Obstacle avoidance
-  max_obs_num: 6
-  robot_radius: 0.3
+    # Obstacle avoidance
+    max_obs_num: 6
+    robot_radius: 0.3
 
-  W_slack: 1000.0
+    W_slack: 1000.0
+
+  dynamic:
+    horizon: 20
+    dt: 0.1
+
+    # Robot limits
+    max_v: 2.0
+    min_v: 0.0
+    max_omega: 1.5
+
+    # State costs
+    Q_x: 3.0
+    Q_y: 3.0
+    Q_theta: 0.3
+
+    # Control costs
+    R_v: 0.1
+    R_omega: 0.7
+    Rd_v: 0.2
+    Rd_omega: 0.5
+
+    # Obstacle avoidance
+    max_obs_num: 6
+    robot_radius: 0.3
+
+    W_slack: 1000.0
