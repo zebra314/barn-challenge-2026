@@ -60,8 +60,7 @@ class MPCNode:
 
         if self.is_dynamic:
             self.config = rospy.get_param('~mpc')['dynamic']
-            rospy.logwarn("[MPCNode] Scene detected as DYNAMIC. Switching to CONSERVATIVE mode.")
-
+            rospy.logwarn("[MPCNode] Scene detected as DYNAMIC.")
         else:
             self.config = rospy.get_param('~mpc')['static']
             rospy.loginfo("[MPCNode] Scene detected as STATIC. Switching to AGGRESSIVE mode.")
