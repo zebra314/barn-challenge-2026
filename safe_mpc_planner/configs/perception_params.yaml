@@ -1,0 +1,6 @@
+perception:
+  lidar_cluster:
+    cluster_threshold: 0.3
+    min_points: 3
+    max_scan_range: 5.0
+    radius_inflation: 0.03

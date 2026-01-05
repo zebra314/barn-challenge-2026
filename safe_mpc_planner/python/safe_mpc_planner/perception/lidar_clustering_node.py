@@ -9,19 +9,8 @@ from safe_mpc_planner.perception.lidar_cluster import LidarCluster
 
 class LidarClusteringNode:
     def __init__(self):
-        # Get parameters
-        cluster_threshold = rospy.get_param('~cluster_threshold', 0.25)
-        min_points = rospy.get_param('~min_points', 3)
-        max_scan_range = rospy.get_param('~max_scan_range', 5.0)
-        radius_inflation = rospy.get_param('~radius_inflation', 0.05)
-
-        # Initialize LidarCluster
-        self.detector = LidarCluster(
-            cluster_threshold=cluster_threshold,
-            min_points=min_points,
-            max_scan_range=max_scan_range,
-            radius_inflation=radius_inflation
-        )
+        config = rospy.get_param('~perception')['lidar_cluster']
+        self.cluster = LidarCluster(config)
 
         # Set publishers
         self.pub_obstacles = rospy.Publisher('/obstacles_raw', Float32MultiArray, queue_size=1)
@@ -33,7 +22,7 @@ class LidarClusteringNode:
         rospy.loginfo("Lidar Clustering Node Started.")
 
     def scan_callback(self, msg):
-        obstacles_list = self.detector.process_scan(msg)
+        obstacles_list = self.cluster.process(msg)
 
         if obstacles_list:
             self.publish_data(obstacles_list)
