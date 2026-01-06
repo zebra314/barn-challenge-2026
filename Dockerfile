@@ -49,7 +49,7 @@ RUN git clone https://github.com/jackal/jackal_desktop.git --branch melodic-deve
 RUN git clone https://github.com/utexas-bwi/eband_local_planner.git
 
 # Install Python dependencies
-RUN pip install "numpy<1.17"  pathlib "casadi==3.5.5"
+RUN pip install "numpy<1.17"  pathlib "casadi==3.5.5" scipy
 RUN pip3 install numpy rospkg
 
 # Install specific ROS packages
