@@ -9,7 +9,7 @@ class LidarCluster:
         self.cluster_threshold = config.get('cluster_threshold', 0.3)
         self.min_points = config.get('min_points', 3)
         self.max_scan_range = config.get('max_scan_range', 5.0)
-        self.radius_inflation = config.get('radius_inflation', 0.03)
+        self.radius_inflation = config.get('radius_inflation', 0.1)
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)

@@ -136,7 +136,7 @@ class MPCSolver:
         self.opti.subject_to(self.slack >= 0)
 
         # Obstacle avoidance constraints
-        self.add_ellipse_constraints(x, y)
+        self.add_ellipse_constraints(x, y, th)
 
         # Solver settings
         opts = {
@@ -148,47 +148,53 @@ class MPCSolver:
         }
         self.opti.solver('ipopt', opts)
 
-    def add_ellipse_constraints(self, x, y):
+    def add_ellipse_constraints(self, x, y, th):
         """
         Add dynamic ellipse obstacle avoidance constraints
         """
+        circle_offsets = [0.1, 0.0, -0.1]
+        circle_radius = 0.25
+
         # Check from next time step
         for k in range(1, self.horizon + 1):
-            # Prediction time
             t_predict = k * self.dt
+            cos_th_k = ca.cos(th[k])
+            sin_th_k = ca.sin(th[k])
 
-            for j in range(self.max_obs_num):
-                # Extract parameters
-                obs_x = self.obstacles[0, j]
-                obs_y = self.obstacles[1, j]
-                obs_th = self.obstacles[2, j]
-                obs_a = self.obstacles[3, j]
-                obs_b = self.obstacles[4, j]
-                obs_vx = self.obstacles[5, j]
-                obs_vy = self.obstacles[6, j]
+            for offset in circle_offsets:
+                c_x = x[k] + offset * cos_th_k
+                c_y = y[k] + offset * sin_th_k
 
-                # Linear motion
-                curr_obs_x = obs_x + obs_vx * t_predict
-                curr_obs_y = obs_y + obs_vy * t_predict
+                for j in range(self.max_obs_num):
+                    # Extract parameters
+                    obs_x = self.obstacles[0, j]
+                    obs_y = self.obstacles[1, j]
+                    obs_th = self.obstacles[2, j]
+                    obs_a = self.obstacles[3, j]
+                    obs_b = self.obstacles[4, j]
+                    obs_vx = self.obstacles[5, j]
+                    obs_vy = self.obstacles[6, j]
 
-                # Transform frame from world to obstacle
-                dx = x[k] - curr_obs_x
-                dy = y[k] - curr_obs_y
+                    # Linear motion
+                    curr_obs_x = obs_x + obs_vx * t_predict
+                    curr_obs_y = obs_y + obs_vy * t_predict
 
-                c = ca.cos(obs_th)
-                s = ca.sin(obs_th)
-                x_local = dx * c + dy * s
-                y_local = -dx * s + dy * c
+                    dx = c_x - curr_obs_x
+                    dy = c_y - curr_obs_y
 
-                # Safety margin
-                safe_a = ca.fmax(obs_a + self.robot_radius, 0.01)
-                safe_b = ca.fmax(obs_b + self.robot_radius, 0.01)
+                    c_obs = ca.cos(obs_th)
+                    s_obs = ca.sin(obs_th)
 
-                # Ellipse Distance
-                dist_sq = (x_local / safe_a)**2 + (y_local / safe_b)**2
+                    x_local = dx * c_obs + dy * s_obs
+                    y_local = -dx * s_obs + dy * c_obs
 
-                # Soft constraint
-                self.opti.subject_to(dist_sq + self.slack[k] >= 1.0)
+                    safe_a = ca.fmax(obs_a + circle_radius, 0.01)
+                    safe_b = ca.fmax(obs_b + circle_radius, 0.01)
+
+                    dist_sq = (x_local / safe_a)**2 + (y_local / safe_b)**2
+
+                    # Soft constraint
+                    self.opti.subject_to(dist_sq >= 1.0 - self.slack[k])
 
     def solve(self, x0, ref_traj, obstacles):
         """
@@ -264,3 +270,69 @@ class MPCSolver:
         except RuntimeError as e:
             self.logger.warning("MPC solver failed: %s", e)
             return [0.0, 0.0], np.zeros((3, self.horizon+1))
+
+    def get_reference_traj(self, robot_state, transformed_path):
+        if not transformed_path:
+            return None
+
+        rx, ry = robot_state[0], robot_state[1]
+        path_np = np.array([[p.pose.position.x, p.pose.position.y] for p in transformed_path])
+        dists = np.linalg.norm(path_np - np.array([rx, ry]), axis=1)
+        closest_idx = np.argmin(dists)
+
+        ref_traj = np.zeros((3, self.config['horizon'] + 1))
+
+        target_vel = 1.0
+        dt = self.config.get('dt', 0.1)
+        step_dist = target_vel * dt
+
+        curr_idx = closest_idx
+
+        for k in range(self.config['horizon'] + 1):
+            pose = transformed_path[curr_idx].pose.position
+            ref_traj[0, k] = pose.x
+            ref_traj[1, k] = pose.y
+
+            if k < self.config['horizon']:
+                temp_idx = curr_idx
+                temp_dist = 0.0
+                while temp_idx < len(transformed_path) - 1:
+                    p1 = transformed_path[temp_idx].pose.position
+                    p2 = transformed_path[temp_idx+1].pose.position
+                    d = np.hypot(p2.x - p1.x, p2.y - p1.y)
+                    temp_dist += d
+                    temp_idx += 1
+                    if temp_dist >= step_dist * 0.5:
+                        break
+
+                next_p = transformed_path[temp_idx].pose.position
+                yaw = np.arctan2(next_p.y - pose.y, next_p.x - pose.x)
+            else:
+                yaw = ref_traj[2, k-1]
+
+            # Yaw unwrapping
+            if k == 0:
+                base_yaw = robot_state[2]
+            else:
+                base_yaw = ref_traj[2, k-1]
+
+            while yaw - base_yaw > np.pi:
+                yaw -= 2 * np.pi
+            while yaw - base_yaw < -np.pi:
+                yaw += 2 * np.pi
+
+            ref_traj[2, k] = yaw
+
+            dist_travelled = 0.0
+            while curr_idx < len(transformed_path) - 1:
+                p1 = transformed_path[curr_idx].pose.position
+                p2 = transformed_path[curr_idx+1].pose.position
+                d = np.hypot(p2.x - p1.x, p2.y - p1.y)
+
+                dist_travelled += d
+                curr_idx += 1
+
+                if dist_travelled >= step_dist:
+                    break
+
+        return ref_traj

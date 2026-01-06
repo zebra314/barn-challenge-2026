@@ -2,6 +2,7 @@ import rospy
 import numpy as np
 import tf2_ros
 import tf2_geometry_msgs
+import tf.transformations
 from nav_msgs.msg import Path, Odometry
 from std_msgs.msg import Float32MultiArray, Bool
 from geometry_msgs.msg import Twist, PoseStamped
@@ -68,13 +69,15 @@ class MPCNode:
         self.solver.update_params(self.config)
 
     def get_robot_state(self):
-        if not self.current_odom: return None
+        if not self.current_odom:
+            return None
+
         pose = self.current_odom.pose.pose
 
         # Quaternion to Yaw
-        import tf.transformations
         q = (pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
         euler = tf.transformations.euler_from_quaternion(q)
+
         return np.array([pose.position.x, pose.position.y, euler[2]])
 
     def transform_path_to_odom(self, path_msg):
@@ -93,72 +96,6 @@ class MPCNode:
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
             rospy.logwarn("TF Error: Cannot transform path to odom frame")
             return None
-
-    def get_local_reference(self, robot_state, transformed_path):
-        if not transformed_path:
-            return None
-
-        rx, ry = robot_state[0], robot_state[1]
-        path_np = np.array([[p.pose.position.x, p.pose.position.y] for p in transformed_path])
-        dists = np.linalg.norm(path_np - np.array([rx, ry]), axis=1)
-        closest_idx = np.argmin(dists)
-
-        ref_traj = np.zeros((3, self.config['horizon'] + 1))
-
-        target_vel = 1.0
-        dt = self.config.get('dt', 0.1)
-        step_dist = target_vel * dt
-
-        curr_idx = closest_idx
-
-        for k in range(self.config['horizon'] + 1):
-            pose = transformed_path[curr_idx].pose.position
-            ref_traj[0, k] = pose.x
-            ref_traj[1, k] = pose.y
-
-            if k < self.config['horizon']:
-                temp_idx = curr_idx
-                temp_dist = 0.0
-                while temp_idx < len(transformed_path) - 1:
-                    p1 = transformed_path[temp_idx].pose.position
-                    p2 = transformed_path[temp_idx+1].pose.position
-                    d = np.hypot(p2.x - p1.x, p2.y - p1.y)
-                    temp_dist += d
-                    temp_idx += 1
-                    if temp_dist >= step_dist * 0.5:
-                        break
-
-                next_p = transformed_path[temp_idx].pose.position
-                yaw = np.arctan2(next_p.y - pose.y, next_p.x - pose.x)
-            else:
-                yaw = ref_traj[2, k-1]
-
-            # Yaw unwrapping
-            if k == 0:
-                base_yaw = robot_state[2]
-            else:
-                base_yaw = ref_traj[2, k-1]
-
-            while yaw - base_yaw > np.pi:
-                yaw -= 2 * np.pi
-            while yaw - base_yaw < -np.pi:
-                yaw += 2 * np.pi
-
-            ref_traj[2, k] = yaw
-
-            dist_travelled = 0.0
-            while curr_idx < len(transformed_path) - 1:
-                p1 = transformed_path[curr_idx].pose.position
-                p2 = transformed_path[curr_idx+1].pose.position
-                d = np.hypot(p2.x - p1.x, p2.y - p1.y)
-
-                dist_travelled += d
-                curr_idx += 1
-
-                if dist_travelled >= step_dist:
-                    break
-
-        return ref_traj
 
     def publish_predicted_path(self, pred_traj_np):
         """
@@ -190,24 +127,25 @@ class MPCNode:
 
         state = self.get_robot_state()
         odom_path = self.transform_path_to_odom(self.global_path)
+        ref_traj = self.solver.get_reference_traj(state, odom_path)
 
-        ref_traj = self.get_local_reference(state, odom_path)
-        if ref_traj is None: return
+        if ref_traj is None:
+            return
 
         try:
             control, pred_traj = self.solver.solve(state, ref_traj, self.current_obstacles)
 
-            # 4. Extract control commands
+            # Extract control commands
             v = control[0]
             omega = control[1]
 
-            # 5. Publish control commands
+            # Publish control commands
             cmd = Twist()
             cmd.linear.x = v
             cmd.angular.z = omega
             self.cmd_pub.publish(cmd)
 
-            # 6. Publish predicted trajectory for visualization
+            # Publish predicted trajectory for visualization
             self.publish_predicted_path(pred_traj)
 
         except Exception as e:
