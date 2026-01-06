@@ -127,7 +127,7 @@ class MPCNode:
 
         state = self.get_robot_state()
         odom_path = self.transform_path_to_odom(self.global_path)
-        ref_traj = self.solver.get_reference_traj(state, odom_path)
+        ref_traj = self.solver.get_reference_trajectory(odom_path, state, self.current_obstacles)
 
         if ref_traj is None:
             return

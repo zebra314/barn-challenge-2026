@@ -1,6 +1,7 @@
 import logging
 import casadi as ca
 import numpy as np
+from scipy.interpolate import PchipInterpolator
 
 from safe_mpc_planner.optimization.robot_model import JackalModel
 
@@ -52,6 +53,8 @@ class MPCSolver:
         self.last_sol_x = None
         self.last_sol_u = None
         self.last_sol_slack = None
+
+        self.last_closest_idx = 0
 
         self.init_solver()
         self.update_params(config)
@@ -147,6 +150,156 @@ class MPCSolver:
             'ipopt.warm_start_init_point': 'yes'
         }
         self.opti.solver('ipopt', opts)
+
+
+    def get_reference_trajectory(self, odom_path, robot_state, obstacles):
+        if not odom_path:
+            return None
+
+        rx, ry = robot_state[0], robot_state[1]
+
+        path = np.array([[p.pose.position.x, p.pose.position.y] for p in odom_path])
+
+
+        need_reset = False
+        threshold = 2.0
+        if not hasattr(self, 'last_closest_idx'): self.last_closest_idx = 0
+
+        if self.last_closest_idx >= len(path): need_reset = True
+        else:
+            last_pt = path[self.last_closest_idx]
+            if np.hypot(last_pt[0] - rx, last_pt[1] - ry) > threshold: need_reset = True
+
+        start_search = 0 if need_reset else self.last_closest_idx
+        end_search = min(start_search + 50, len(path))
+        dists = np.linalg.norm(path[start_search:end_search] - np.array([rx, ry]), axis=1)
+
+        if len(dists) == 0: return None
+        closest_idx = start_search + np.argmin(dists)
+        self.last_closest_idx = closest_idx
+
+        required_dist = 6.0
+        accum_slice_dist = 0.0
+        end_slice_idx = closest_idx
+
+        for i in range(closest_idx, len(path) - 1):
+            d = np.hypot(path[i+1][0] - path[i][0], path[i+1][1] - path[i][1])
+            accum_slice_dist += d
+            end_slice_idx = i + 1
+            if accum_slice_dist > required_dist: break
+
+        end_slice_idx = min(end_slice_idx + 10, len(path))
+        raw_points = path[closest_idx : end_slice_idx]
+
+        if len(raw_points) < 4: return None
+
+
+        local_points = [raw_points[0]]
+        last_added_idx = 0
+
+        min_gap = 0.1
+        max_gap = 0.5
+        angle_threshold = 0.05
+
+        for i in range(1, len(raw_points)-1):
+            curr_pt = raw_points[i]
+            last_pt = raw_points[last_added_idx]
+            dist = np.linalg.norm(curr_pt - last_pt)
+
+            # p_prev -> p_curr -> p_next
+            v1 = raw_points[i] - raw_points[i-1]
+            v2 = raw_points[i+1] - raw_points[i]
+
+            yaw1 = np.arctan2(v1[1], v1[0])
+            yaw2 = np.arctan2(v2[1], v2[0])
+            angle_diff = abs(yaw2 - yaw1)
+            # Normalize angle
+            while angle_diff > np.pi: angle_diff -= 2*np.pi
+            while angle_diff < -np.pi: angle_diff += 2*np.pi
+            angle_diff = abs(angle_diff)
+
+
+            if angle_diff > angle_threshold:
+                required_gap = min_gap
+            else:
+                required_gap = max_gap
+
+
+            is_sharp_corner = angle_diff > 0.3
+
+            if dist >= required_gap or (is_sharp_corner and dist > 0.05):
+                local_points.append(curr_pt)
+                last_added_idx = i
+
+        if np.linalg.norm(raw_points[-1] - local_points[-1]) > 0.05:
+            local_points.append(raw_points[-1])
+
+        local_points = np.array(local_points)
+
+        diffs = np.diff(local_points, axis=0)
+        segment_dists = np.linalg.norm(diffs, axis=1)
+        valid_mask = segment_dists > 1e-4
+        if np.sum(valid_mask) < 2: return None
+
+        local_points = local_points[np.insert(valid_mask, 0, True)]
+        diffs = np.diff(local_points, axis=0)
+        segment_dists = np.linalg.norm(diffs, axis=1)
+        s = np.concatenate(([0], np.cumsum(segment_dists)))
+        total_s = s[-1]
+
+        try:
+
+            cs_x = PchipInterpolator(s, local_points[:, 0])
+            cs_y = PchipInterpolator(s, local_points[:, 1])
+        except Exception:
+            return None
+
+
+        ref_traj = np.zeros((3, self.config['horizon'] + 1))
+        dt = self.config.get('dt', 0.1)
+        curr_s = 0.0
+
+        base_v = 0.8
+        max_lat_accel = 0.6
+        force_stop = False
+
+        for k in range(self.config['horizon'] + 1):
+            if force_stop:
+                ref_traj[0, k] = ref_traj[0, k-1]
+                ref_traj[1, k] = ref_traj[1, k-1]
+                ref_traj[2, k] = ref_traj[2, k-1]
+                continue
+
+            dx = cs_x(curr_s, 1)
+            dy = cs_y(curr_s, 1)
+
+            ddx = cs_x(curr_s, 2)
+            ddy = cs_y(curr_s, 2)
+
+            curvature = abs(dx*ddy - dy*ddx) / (dx**2 + dy**2 + 1e-6)**1.5
+
+            v_curvature_limit = np.sqrt(max_lat_accel / (curvature + 1e-6))
+            target_vel = min(base_v, v_curvature_limit)
+
+            dist_remain = total_s - curr_s
+            slow_down_dist = 2.0
+            if dist_remain < slow_down_dist:
+                ratio = max(0.0, dist_remain / slow_down_dist)
+                target_vel *= ratio
+                if dist_remain > 0.1: target_vel = max(target_vel, 0.15)
+                else: target_vel = 0.0
+
+            ref_traj[0, k] = cs_x(curr_s)
+            ref_traj[1, k] = cs_y(curr_s)
+            ref_traj[2, k] = np.arctan2(dy, dx)
+
+            curr_s += target_vel * dt
+            if curr_s >= total_s:
+                curr_s = total_s
+                force_stop = True
+
+        ref_traj[2, :] = np.unwrap(ref_traj[2, :])
+        return ref_traj
 
     def add_ellipse_constraints(self, x, y, th):
         """
@@ -270,69 +423,3 @@ class MPCSolver:
         except RuntimeError as e:
             self.logger.warning("MPC solver failed: %s", e)
             return [0.0, 0.0], np.zeros((3, self.horizon+1))
-
-    def get_reference_traj(self, robot_state, transformed_path):
-        if not transformed_path:
-            return None
-
-        rx, ry = robot_state[0], robot_state[1]
-        path_np = np.array([[p.pose.position.x, p.pose.position.y] for p in transformed_path])
-        dists = np.linalg.norm(path_np - np.array([rx, ry]), axis=1)
-        closest_idx = np.argmin(dists)
-
-        ref_traj = np.zeros((3, self.config['horizon'] + 1))
-
-        target_vel = 1.0
-        dt = self.config.get('dt', 0.1)
-        step_dist = target_vel * dt
-
-        curr_idx = closest_idx
-
-        for k in range(self.config['horizon'] + 1):
-            pose = transformed_path[curr_idx].pose.position
-            ref_traj[0, k] = pose.x
-            ref_traj[1, k] = pose.y
-
-            if k < self.config['horizon']:
-                temp_idx = curr_idx
-                temp_dist = 0.0
-                while temp_idx < len(transformed_path) - 1:
-                    p1 = transformed_path[temp_idx].pose.position
-                    p2 = transformed_path[temp_idx+1].pose.position
-                    d = np.hypot(p2.x - p1.x, p2.y - p1.y)
-                    temp_dist += d
-                    temp_idx += 1
-                    if temp_dist >= step_dist * 0.5:
-                        break
-
-                next_p = transformed_path[temp_idx].pose.position
-                yaw = np.arctan2(next_p.y - pose.y, next_p.x - pose.x)
-            else:
-                yaw = ref_traj[2, k-1]
-
-            # Yaw unwrapping
-            if k == 0:
-                base_yaw = robot_state[2]
-            else:
-                base_yaw = ref_traj[2, k-1]
-
-            while yaw - base_yaw > np.pi:
-                yaw -= 2 * np.pi
-            while yaw - base_yaw < -np.pi:
-                yaw += 2 * np.pi
-
-            ref_traj[2, k] = yaw
-
-            dist_travelled = 0.0
-            while curr_idx < len(transformed_path) - 1:
-                p1 = transformed_path[curr_idx].pose.position
-                p2 = transformed_path[curr_idx+1].pose.position
-                d = np.hypot(p2.x - p1.x, p2.y - p1.y)
-
-                dist_travelled += d
-                curr_idx += 1
-
-                if dist_travelled >= step_dist:
-                    break
-
-        return ref_traj
